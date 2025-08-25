@@ -23,5 +23,12 @@ module.exports = {
   },
   async delete(id, doctorId) {
     await db.query('DELETE FROM appointments WHERE id=? AND doctor_id=?', [id, doctorId]);
+  },
+  async getById(id) {
+    const [rows] = await db.query(
+      'SELECT a.*, p.nom AS patient_nom, p.prenom AS patient_prenom FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.id = ?',
+      [id]
+    );
+    return rows;
   }
 };

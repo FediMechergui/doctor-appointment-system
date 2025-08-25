@@ -12,7 +12,8 @@ exports.getAllByDoctor = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const id = await appointmentModel.create({ doctor_id: req.user.id, ...req.body });
-    res.status(201).json({ id, message: 'Rendez-vous ajouté.' });
+    const [appointment] = await appointmentModel.getById(id);
+    res.status(201).json(appointment);
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur.', error: err });
   }

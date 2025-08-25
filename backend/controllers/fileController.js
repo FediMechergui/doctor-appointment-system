@@ -11,45 +11,102 @@ exports.upload = async (req, res) => {
       patient_id,
       nom_fichier: filename,
       chemin_fichier,
-      type_fichier: mimetype
+      type_fichier: mimetype,
+      doctor_id: req.user.id,
     });
-    res.status(201).json({ message: 'Fichier uploadé.', filename });
+    res.status(201).json({ message: "Fichier uploadé.", filename });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.', error: err });
+    res.status(500).json({ message: "Erreur serveur.", error: err });
   }
 };
 
 exports.listByPatient = async (req, res) => {
   try {
-    const files = await fileModel.getByPatient(req.params.patient_id);
+    const files = await fileModel.getByPatient(
+      req.params.patient_id,
+      req.user.id
+    );
     res.json(files);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.', error: err });
+    res.status(500).json({ message: "Erreur serveur.", error: err });
   }
 };
 
 // List all medical files across patients
 exports.listAll = async (req, res) => {
   try {
-    const files = await fileModel.getAll();
+    const files = await fileModel.getAllByDoctor(req.user.id);
     res.json(files);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.', error: err });
+    res.status(500).json({ message: "Erreur serveur.", error: err });
   }
 };
 
 exports.rename = async (req, res) => {
   const { nouveau_nom } = req.body;
   try {
-    const file = await fileModel.getById(req.params.file_id);
-    if (!file) return res.status(404).json({ message: 'Fichier non trouvé.' });
-    const oldPath = path.join(__dirname, '..', file.chemin_fichier);
-    const newFilename = Date.now() + '-' + nouveau_nom.replace(/\s+/g, '_');
-    const newPath = path.join(__dirname, '..', process.env.UPLOADS_DIR || 'uploads', newFilename);
+    const file = await fileModel.getById(req.params.file_id, req.user.id);
+    if (!file) return res.status(404).json({ message: "Fichier non trouvé." });
+    const oldPath = path.join(__dirname, "..", file.chemin_fichier);
+    const newFilename = Date.now() + "-" + nouveau_nom.replace(/\s+/g, "_");
+    const newPath = path.join(
+      __dirname,
+      "..",
+      process.env.UPLOADS_DIR || "uploads",
+      newFilename
+    );
     fs.renameSync(oldPath, newPath);
-    await fileModel.rename(req.params.file_id, newFilename, `/uploads/${newFilename}`);
-    res.json({ message: 'Fichier renommé.', newFilename });
+    await fileModel.rename(
+      req.params.file_id,
+      newFilename,
+      `/uploads/${newFilename}`
+    );
+    res.json({ message: "Fichier renommé.", newFilename });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.', error: err });
+    res.status(500).json({ message: "Erreur serveur.", error: err });
+  }
+};
+
+exports.delete = async (req, res) => {
+  try {
+    const file = await fileModel.getById(req.params.file_id, req.user.id);
+    if (!file) return res.status(404).json({ message: "Fichier non trouvé." });
+
+    // Delete the file from disk
+    const filePath = path.join(__dirname, "..", file.chemin_fichier);
+    let fileDeleted = false;
+    try {
+      fs.unlinkSync(filePath);
+      fileDeleted = true;
+    } catch (err) {
+      // If file doesn't exist, ignore error
+    }
+
+    // Delete all DB records with the same filename (to avoid orphans)
+    await fileModel.deleteByFilename(file.nom_fichier, req.user.id);
+
+    res.json({ message: "Fichier supprimé." });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur.", error: err });
+  }
+};
+
+// Cleanup endpoint: removes DB records for files that do not exist on disk
+exports.cleanupOrphanedFiles = async (req, res) => {
+  try {
+    const files = await fileModel.getAllByDoctor(req.user.id);
+    let deletedCount = 0;
+    for (const file of files) {
+      const filePath = path.join(__dirname, "..", file.chemin_fichier);
+      if (!fs.existsSync(filePath)) {
+        await fileModel.delete(file.id, req.user.id);
+        deletedCount++;
+      }
+    }
+    res.json({
+      message: `Nettoyage terminé. ${deletedCount} fichiers orphelins supprimés.`,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur.", error: err });
   }
 };

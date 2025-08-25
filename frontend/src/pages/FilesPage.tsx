@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useData } from "@/context/DataContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,16 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, FileText, Trash, FileImage, FileVideo, FilePen } from "lucide-react";
+import { Search, Plus, FileText, Trash, FileImage, FileVideo, FilePen, Eye, Download } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "@/components/ui/sonner";
+import { MedicalFile } from "@/context/DataContext";
 
 export default function FilesPage() {
   const { medicalFiles, patients, addMedicalFile, deleteMedicalFile } = useData();
   const [searchQuery, setSearchQuery] = useState("");
   const [patientFilter, setPatientFilter] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<MedicalFile | null>(null);
+  const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  const [previewError, setPreviewError] = useState<string>("");
   const [newFile, setNewFile] = useState({
     patient_id: 0,
     nom_fichier: "",
@@ -86,6 +89,12 @@ export default function FilesPage() {
     return <FileText className="h-6 w-6" />;
   };
 
+  const handlePreviewFile = (file: MedicalFile) => {
+    setPreviewError("");
+    setPreviewFile(file);
+    setIsPreviewDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -143,7 +152,9 @@ export default function FilesPage() {
             ) : (
               filteredFiles.map(file => {
                 const patient = patients.find(p => p.id === file.patient_id);
-                
+                const fileUrl = file.chemin_fichier.startsWith("/")
+                  ? `http://localhost:5000${file.chemin_fichier}`
+                  : file.chemin_fichier;
                 return (
                   <Card key={file.id} className="overflow-hidden">
                     <div className="h-36 bg-medical-primary/10 flex items-center justify-center">
@@ -151,25 +162,51 @@ export default function FilesPage() {
                         {getFileIcon(file.type_fichier)}
                       </div>
                     </div>
-                    <CardContent className="p-4">
+                    <CardContent>
                       <h3 className="font-medium truncate" title={file.nom_fichier}>
                         {file.nom_fichier}
                       </h3>
                       <p className="text-sm text-muted-foreground mb-3">
                         {patient?.prenom} {patient?.nom}
                       </p>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(file.date_upload), "dd MMM yyyy", { locale: fr })}
                         </span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="text-medical-danger"
-                          onClick={() => handleDeleteFile(file.id)}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-700"
+                            title="Prévisualiser"
+                            onClick={() => handlePreviewFile(file)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <a
+                            href={fileUrl}
+                            download={file.nom_fichier}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-green-700"
+                              title="Télécharger"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-medical-danger"
+                            onClick={() => handleDeleteFile(file.id)}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -248,6 +285,42 @@ export default function FilesPage() {
               Ajouter
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Prévisualisation du fichier</DialogTitle>
+            <DialogDescription>
+              {previewFile?.nom_fichier}
+            </DialogDescription>
+          </DialogHeader>
+          {previewError ? (
+            <div className="text-red-500 text-center py-8">{previewError}</div>
+          ) : previewFile ? (
+            previewFile.type_fichier?.includes("image") ? (
+              <img
+                src={previewFile.chemin_fichier.startsWith("/") ? `http://localhost:5000${previewFile.chemin_fichier}` : previewFile.chemin_fichier}
+                alt={previewFile.nom_fichier}
+                className="max-h-[500px] mx-auto"
+                onError={() => setPreviewError("Impossible d'afficher l'image.")}
+              />
+            ) : previewFile.type_fichier?.includes("pdf") ? (
+              <embed
+                src={previewFile.chemin_fichier.startsWith("/") ? `http://localhost:5000${previewFile.chemin_fichier}` : previewFile.chemin_fichier}
+                type="application/pdf"
+                width="100%"
+                height="500px"
+                onError={() => setPreviewError("Impossible d'afficher le PDF.")}
+              />
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                <p>Ce type de fichier ne peut pas être prévisualisé.</p>
+              </div>
+            )
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type Patient = {
   id: number;
@@ -81,6 +81,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryKey: ['patients'],
     queryFn: async () => {
       const { data } = await api.get('/patients');
+      console.log('Fetched patients:', data);
       return data;
     }
   });
@@ -108,6 +109,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryKey: ['appointments'],
     queryFn: async () => {
       const { data } = await api.get('/appointments');
+      console.log('Fetched appointments:', data);
       return data;
     }
   });
@@ -128,7 +130,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   // Medical Files
-  // Fetch all medical files
   const {
     data: medicalFiles = [],
     refetch: refetchFiles
@@ -136,9 +137,38 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryKey: ['medicalFiles'],
     queryFn: async () => {
       const { data } = await api.get('/files');
+      console.log('Fetched medical files:', data); // DEBUG
       return data;
     }
   });
+
+  // Filter out files that do not exist in the uploads directory
+  const [existingMedicalFiles, setExistingMedicalFiles] = useState<MedicalFile[]>([]);
+
+  useEffect(() => {
+    const backendUrl = "http://localhost:5000"; // Update this if your backend URL changes
+    const checkFiles = async () => {
+      if (!medicalFiles.length) {
+        setExistingMedicalFiles([]);
+        return;
+      }
+      const results = await Promise.all(
+        medicalFiles.map(async (file) => {
+          try {
+            const url = file.chemin_fichier.startsWith("/")
+              ? backendUrl + file.chemin_fichier
+              : file.chemin_fichier;
+            const res = await fetch(url, { method: 'HEAD' });
+            return res.ok ? file : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      setExistingMedicalFiles(results.filter(Boolean) as MedicalFile[]);
+    };
+    checkFiles();
+  }, [medicalFiles]);
 
   // File upload: expects a File object and patient_id
   const addMedicalFileMutation = useMutation({
@@ -163,14 +193,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getPatientById = (id: number) => patients.find(p => p.id === id);
   const getAppointmentsForPatient = (patientId: number) =>
     appointments.filter(a => a.patient_id === patientId).map(a => ({ ...a, patient: patients.find(p => p.id === a.patient_id) }));
-  const getFilesForPatient = (patientId: number) => medicalFiles.filter(f => f.patient_id === patientId);
 
   return (
     <DataContext.Provider
       value={{
         patients,
         appointments,
-        medicalFiles,
+        medicalFiles: existingMedicalFiles,
         setPatients: () => {}, // Not used, but kept for typing compatibility
         setAppointments: () => {},
         setMedicalFiles: () => {},
@@ -184,7 +213,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteMedicalFile: (id) => deleteMedicalFileMutation.mutate(id),
         getPatientById,
         getAppointmentsForPatient,
-        getFilesForPatient
+        getFilesForPatient: (patientId) => existingMedicalFiles.filter(f => f.patient_id === patientId),
       }}
     >
       {children}

@@ -1,6 +1,3 @@
--- Schéma SQL pour le tableau de bord médical
--- Compatible avec MySQL (XAMPP)
-
 -- Table des médecins (doctors)
 CREATE TABLE IF NOT EXISTS doctors (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -14,6 +11,7 @@ CREATE TABLE IF NOT EXISTS doctors (
 -- Table des patients (patients)
 CREATE TABLE IF NOT EXISTS patients (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id INT NOT NULL,
     nom VARCHAR(100) NOT NULL,
     prenom VARCHAR(100) NOT NULL,
     date_naissance DATE,
@@ -27,7 +25,8 @@ CREATE TABLE IF NOT EXISTS patients (
     antecedents_medicaux TEXT,
     medicaments_actuels TEXT,
     autres_notes TEXT,
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
 );
 
 -- Table des rendez-vous (appointments)
@@ -47,11 +46,13 @@ CREATE TABLE IF NOT EXISTS appointments (
 -- Table des documents médicaux (medical_files)
 CREATE TABLE IF NOT EXISTS medical_files (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id INT NOT NULL,
     patient_id INT NOT NULL,
     nom_fichier VARCHAR(255) NOT NULL,
     chemin_fichier VARCHAR(255) NOT NULL,
     type_fichier VARCHAR(100),
     date_upload DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE,
     FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
 );
 

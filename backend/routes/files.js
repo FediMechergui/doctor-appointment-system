@@ -12,5 +12,7 @@ router.get('/', auth, fileController.listAll);
 // List files for a single patient
 router.get('/:patient_id', auth, fileController.listByPatient);
 router.put('/rename/:file_id', auth, fileController.rename);
+router.delete('/:file_id', auth, fileController.delete);
+router.delete('/cleanup/orphans', auth, fileController.cleanupOrphanedFiles);
 
 module.exports = router;
